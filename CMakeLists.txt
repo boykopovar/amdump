@@ -7,6 +7,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_executable(amdump
     src/Main.cpp
+    src/ProcessFinder.cpp
     src/ProcessMap.cpp
     src/Dumper.cpp
 )
