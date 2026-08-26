@@ -12,3 +12,9 @@ add_executable(amdump
 )
 
 target_include_directories(amdump PRIVATE include)
+target_compile_options(amdump PRIVATE
+    -Wall -Wextra -Wpedantic -Wconversion -Wshadow
+    -Wcast-qual -Wcast-align -Wold-style-cast
+    -Woverloaded-virtual -Wnull-dereference
+    -Wdouble-promotion -Wformat=2 -Werror
+)

@@ -45,7 +45,7 @@ void Dumper::Run(const std::string& outPath) {
             std::uint64_t gap = r.start - cur;
             std::uint64_t written = 0;
             while (written < gap) {
-                std::uint64_t chunk = std::min(gap - written, (std::uint64_t)BUF);
+                std::uint64_t chunk = std::min(gap - written, static_cast<std::uint64_t>(BUF));
                 SeekWrite(outF, cur + written - base, zero, static_cast<std::size_t>(chunk));
                 written += chunk;
             }
@@ -54,7 +54,7 @@ void Dumper::Run(const std::string& outPath) {
         std::uint64_t rsize = r.end - r.start;
         std::uint64_t done = 0;
         while (done < rsize) {
-            std::uint64_t chunk = std::min(rsize - done, (std::uint64_t)BUF);
+            std::uint64_t chunk = std::min(rsize - done, static_cast<std::uint64_t>(BUF));
             std::uint64_t vaddr = r.start + done;
             std::size_t n = SeekRead(memF, vaddr, buf, static_cast<std::size_t>(chunk));
             if (n == 0) {
