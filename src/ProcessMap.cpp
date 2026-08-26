@@ -1,19 +1,20 @@
 #include <amdump/ProcessMap.hpp>
 #include <stdexcept>
 #include <cstdio>
+#include <cinttypes>
 #include <string>
 
 namespace Amdump {
 
 ProcessMap::ProcessMap(int pid) {
     std::string path = "/proc/" + std::to_string(pid) + "/maps";
-    FILE* f = std::fopen(path.c_str(), "r");
+    std::FILE* f = std::fopen(path.c_str(), "r");
     if (!f) throw std::runtime_error("cannot open " + path);
     char line[512];
     while (std::fgets(line, sizeof(line), f)) {
         std::uint64_t start, end;
         char perms[8];
-        if (std::sscanf(line, "%lx-%lx %7s", &start, &end, perms) != 3) continue;
+        if (std::sscanf(line, "%" SCNx64 "-%" SCNx64 " %7s", &start, &end, perms) != 3) continue;
         _regions.push_back({start, end});
     }
     std::fclose(f);

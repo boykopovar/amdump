@@ -2,6 +2,7 @@
 #include <stdexcept>
 #include <cstdio>
 #include <cstring>
+#include <cinttypes>
 #include <string>
 #include <algorithm>
 
@@ -65,7 +66,7 @@ void Dumper::Run(const std::string& outPath) {
             SeekWrite(outF, vaddr - base, buf, n);
             done += n;
         }
-        std::fprintf(stderr, "\r[%d/%zu] 0x%lx-0x%lx",
+        std::fprintf(stderr, "\r[%d/%zu] 0x%" PRIx64 "-0x%" PRIx64,
             ++idx, _map.Regions().size(), r.start, r.end);
         cur = r.end;
     }

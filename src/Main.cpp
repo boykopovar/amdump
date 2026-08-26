@@ -1,6 +1,8 @@
 #include <amdump/ProcessMap.hpp>
 #include <amdump/Dumper.hpp>
+#include <cstdio>
 #include <cstdlib>
+#include <cinttypes>
 #include <iostream>
 
 int main(int argc, char** argv) {
@@ -11,7 +13,7 @@ int main(int argc, char** argv) {
     try {
         int pid = std::atoi(argv[1]);
         Amdump::ProcessMap map(pid);
-        std::fprintf(stderr, "base=0x%lx top=0x%lx total=%lu MB\n",
+        std::fprintf(stderr, "base=0x%" PRIx64 " top=0x%" PRIx64 " total=%" PRIu64 " MB\n",
             map.Base(), map.Top(), (map.Top() - map.Base()) / (1024 * 1024));
         Amdump::Dumper dumper(pid, map);
         dumper.Run(argv[2]);
