@@ -2,9 +2,18 @@
 #include <stdexcept>
 #include <cstdio>
 #include <cinttypes>
+#include <cstring>
 #include <string>
 
 namespace Amdump {
+
+static const char* SKIP_NAMES[] = { "[vsyscall]", "[vvar]", "[vdso]" };
+
+static bool ShouldSkip(const char* line) {
+    for (const char* name : SKIP_NAMES)
+        if (std::strstr(line, name)) return true;
+    return false;
+}
 
 ProcessMap::ProcessMap(int pid) {
     std::string path = "/proc/" + std::to_string(pid) + "/maps";
@@ -12,6 +21,7 @@ ProcessMap::ProcessMap(int pid) {
     if (!f) throw std::runtime_error("cannot open " + path);
     char line[512];
     while (std::fgets(line, sizeof(line), f)) {
+        if (ShouldSkip(line)) continue;
         std::uint64_t start, end;
         char perms[8];
         if (std::sscanf(line, "%" SCNx64 "-%" SCNx64 " %7s", &start, &end, perms) != 3) continue;
