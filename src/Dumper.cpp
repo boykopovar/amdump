@@ -3,43 +3,50 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
-#include <fcntl.h>
-#include <unistd.h>
+#include <algorithm>
 
 namespace Amdump {
 
 static const std::size_t BUF = 1 << 20;
 
+static void SeekWrite(std::FILE* f, std::uint64_t offset, const void* data, std::size_t size) {
+    if (std::fseek(f, static_cast<long>(offset), SEEK_SET) != 0)
+        throw std::runtime_error("fseek out failed");
+    if (std::fwrite(data, 1, size, f) != size)
+        throw std::runtime_error("fwrite failed");
+}
+
+static std::size_t SeekRead(std::FILE* f, std::uint64_t offset, void* data, std::size_t size) {
+    if (std::fseek(f, static_cast<long>(offset), SEEK_SET) != 0)
+        return 0;
+    return std::fread(data, 1, size, f);
+}
+
 Dumper::Dumper(int pid, const ProcessMap& map) : _pid(pid), _map(map) {}
 
 void Dumper::Run(const std::string& outPath) {
     std::string memPath = "/proc/" + std::to_string(_pid) + "/mem";
-    int memFd = open(memPath.c_str(), O_RDONLY);
-    if (memFd < 0) throw std::runtime_error("cannot open " + memPath);
+    std::FILE* memF = std::fopen(memPath.c_str(), "rb");
+    if (!memF) throw std::runtime_error("cannot open " + memPath);
 
-    int outFd = open(outPath.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if (outFd < 0) { close(memFd); throw std::runtime_error("cannot open output: " + outPath); }
-
-    std::uint64_t base = _map.Base();
-    std::uint64_t total = _map.Top() - base;
-
-    if (ftruncate(outFd, static_cast<off_t>(total)) < 0)
-        throw std::runtime_error("ftruncate failed");
+    std::FILE* outF = std::fopen(outPath.c_str(), "wb");
+    if (!outF) { std::fclose(memF); throw std::runtime_error("cannot open output: " + outPath); }
 
     static char buf[BUF];
     static char zero[BUF];
     std::memset(zero, 0, BUF);
 
+    std::uint64_t base = _map.Base();
     std::uint64_t cur = base;
     int idx = 0;
+
     for (const auto& r : _map.Regions()) {
         if (r.start > cur) {
             std::uint64_t gap = r.start - cur;
             std::uint64_t written = 0;
             while (written < gap) {
                 std::uint64_t chunk = std::min(gap - written, (std::uint64_t)BUF);
-                if (pwrite(outFd, zero, chunk, static_cast<off_t>(cur + written - base)) < 0)
-                    throw std::runtime_error("pwrite gap failed");
+                SeekWrite(outF, cur + written - base, zero, static_cast<std::size_t>(chunk));
                 written += chunk;
             }
             cur = r.start;
@@ -49,24 +56,22 @@ void Dumper::Run(const std::string& outPath) {
         while (done < rsize) {
             std::uint64_t chunk = std::min(rsize - done, (std::uint64_t)BUF);
             std::uint64_t vaddr = r.start + done;
-            ssize_t n = pread(memFd, buf, chunk, static_cast<off_t>(vaddr));
-            if (n <= 0) {
-                if (pwrite(outFd, zero, chunk, static_cast<off_t>(vaddr - base)) < 0)
-                    throw std::runtime_error("pwrite zero failed");
+            std::size_t n = SeekRead(memF, vaddr, buf, static_cast<std::size_t>(chunk));
+            if (n == 0) {
+                SeekWrite(outF, vaddr - base, zero, static_cast<std::size_t>(chunk));
                 done += chunk;
                 continue;
             }
-            if (pwrite(outFd, buf, static_cast<std::size_t>(n), static_cast<off_t>(vaddr - base)) < 0)
-                throw std::runtime_error("pwrite data failed");
-            done += static_cast<std::uint64_t>(n);
+            SeekWrite(outF, vaddr - base, buf, n);
+            done += n;
         }
         std::fprintf(stderr, "\r[%d/%zu] 0x%lx-0x%lx",
             ++idx, _map.Regions().size(), r.start, r.end);
         cur = r.end;
     }
     std::fprintf(stderr, "\ndone\n");
-    close(memFd);
-    close(outFd);
+    std::fclose(memF);
+    std::fclose(outF);
 }
 
 }

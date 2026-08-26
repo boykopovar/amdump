@@ -12,4 +12,3 @@ add_executable(amdump
 )
 
 target_include_directories(amdump PRIVATE include)
-target_link_options(amdump PRIVATE -static)
