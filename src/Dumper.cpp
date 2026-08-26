@@ -39,6 +39,8 @@ void Dumper::Run(const std::string& outPath) {
 
     std::uint64_t base = _map.Base();
     std::uint64_t cur = base;
+    std::uint64_t bytesRead = 0;
+    std::uint64_t bytesZeroed = 0;
     int idx = 0;
 
     for (const auto& r : _map.Regions()) {
@@ -50,6 +52,7 @@ void Dumper::Run(const std::string& outPath) {
                 SeekWrite(outF, cur + written - base, zero, static_cast<std::size_t>(chunk));
                 written += chunk;
             }
+            bytesZeroed += gap;
             cur = r.start;
         }
         std::uint64_t rsize = r.end - r.start;
@@ -60,17 +63,29 @@ void Dumper::Run(const std::string& outPath) {
             std::size_t n = SeekRead(memF, vaddr, buf, static_cast<std::size_t>(chunk));
             if (n == 0) {
                 SeekWrite(outF, vaddr - base, zero, static_cast<std::size_t>(chunk));
+                bytesZeroed += chunk;
                 done += chunk;
                 continue;
             }
             SeekWrite(outF, vaddr - base, buf, n);
-            done += n;
+            bytesRead += static_cast<std::uint64_t>(n);
+            done += static_cast<std::uint64_t>(n);
         }
         std::fprintf(stderr, "\r[%d/%zu] 0x%" PRIx64 "-0x%" PRIx64,
             ++idx, _map.Regions().size(), r.start, r.end);
         cur = r.end;
     }
-    std::fprintf(stderr, "\ndone\n");
+
+    std::uint64_t total = _map.Top() - base;
+    std::fprintf(stderr, "\n\n");
+    std::fprintf(stderr, "regions   : %zu\n", _map.Regions().size());
+    std::fprintf(stderr, "base      : 0x%" PRIx64 "\n", base);
+    std::fprintf(stderr, "top       : 0x%" PRIx64 "\n", _map.Top());
+    std::fprintf(stderr, "dump size : %" PRIu64 " MB (%" PRIu64 " bytes)\n", total / (1024 * 1024), total);
+    std::fprintf(stderr, "read      : %" PRIu64 " MB (%" PRIu64 " bytes)\n", bytesRead / (1024 * 1024), bytesRead);
+    std::fprintf(stderr, "zeroed    : %" PRIu64 " MB (%" PRIu64 " bytes)\n", bytesZeroed / (1024 * 1024), bytesZeroed);
+    std::fprintf(stderr, "output    : %s\n", outPath.c_str());
+
     std::fclose(memF);
     std::fclose(outF);
 }
