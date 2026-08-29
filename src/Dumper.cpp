@@ -1,5 +1,6 @@
 #include <amdump/Dumper.hpp>
 #include <amdump/ProcessMap.hpp>
+#include <amdump/Elf64.hpp>
 #include <stdexcept>
 #include <cstdio>
 #include <cstring>
@@ -7,7 +8,6 @@
 #include <string>
 #include <algorithm>
 #include <vector>
-#include <elf.h>
 
 namespace Amdump {
 
@@ -46,7 +46,7 @@ void Dumper::Run(const std::string& outPath) {
     const auto& regions = _map.Regions();
     std::uint16_t emachine = ProcessMap::EMachine(_pid);
 
-    std::uint64_t totalSize = sizeof(Elf64_Ehdr) + sizeof(Elf64_Phdr) * regions.size();
+    std::uint64_t totalSize = sizeof(Elf64Ehdr) + sizeof(Elf64Phdr) * regions.size();
     for (const auto& r : regions)
         totalSize += r.end - r.start;
 
@@ -68,7 +68,7 @@ void Dumper::Run(const std::string& outPath) {
     }
 
     std::size_t nsegs = regions.size();
-    std::uint64_t hdrsSize = sizeof(Elf64_Ehdr) + sizeof(Elf64_Phdr) * nsegs;
+    std::uint64_t hdrsSize = sizeof(Elf64Ehdr) + sizeof(Elf64Phdr) * nsegs;
 
     WriteZeroes(outF, hdrsSize);
 
@@ -116,7 +116,7 @@ void Dumper::Run(const std::string& outPath) {
 
     std::uint64_t actualFileSize = Ftell(outF);
 
-    Elf64_Ehdr ehdr;
+    Elf64Ehdr ehdr;
     std::memset(&ehdr, 0, sizeof(ehdr));
     ehdr.e_ident[EI_MAG0] = ELFMAG0;
     ehdr.e_ident[EI_MAG1] = ELFMAG1;
@@ -128,21 +128,21 @@ void Dumper::Run(const std::string& outPath) {
     ehdr.e_ident[EI_OSABI] = ELFOSABI_LINUX;
     ehdr.e_type = ET_CORE;
     ehdr.e_machine = emachine;
-    ehdr.e_version = EV_CURRENT;
+    ehdr.e_version = static_cast<std::uint32_t>(EV_CURRENT);
     ehdr.e_entry = regions.front().start;
-    ehdr.e_phoff = sizeof(Elf64_Ehdr);
-    ehdr.e_ehsize = sizeof(Elf64_Ehdr);
-    ehdr.e_phentsize = sizeof(Elf64_Phdr);
+    ehdr.e_phoff = sizeof(Elf64Ehdr);
+    ehdr.e_ehsize = static_cast<std::uint16_t>(sizeof(Elf64Ehdr));
+    ehdr.e_phentsize = static_cast<std::uint16_t>(sizeof(Elf64Phdr));
     if (nsegs >= 0xffff)
         throw std::runtime_error("too many segments for ELF phnum field");
-    ehdr.e_phnum = static_cast<Elf64_Half>(nsegs);
+    ehdr.e_phnum = static_cast<std::uint16_t>(nsegs);
 
-    std::vector<Elf64_Phdr> phdrs(nsegs);
+    std::vector<Elf64Phdr> phdrs(nsegs);
     for (std::size_t i = 0; i < nsegs; ++i) {
-        Elf64_Phdr& ph = phdrs[i];
+        Elf64Phdr& ph = phdrs[i];
         std::memset(&ph, 0, sizeof(ph));
         ph.p_type = PT_LOAD;
-        ph.p_flags = static_cast<Elf64_Word>(regions[i].flags);
+        ph.p_flags = regions[i].flags;
         ph.p_offset = segInfos[i].fileOffset;
         ph.p_vaddr = regions[i].start;
         ph.p_paddr = regions[i].start;
@@ -153,7 +153,7 @@ void Dumper::Run(const std::string& outPath) {
 
     Fseek(outF, 0);
     Write(outF, &ehdr, sizeof(ehdr));
-    Write(outF, phdrs.data(), sizeof(Elf64_Phdr) * nsegs);
+    Write(outF, phdrs.data(), sizeof(Elf64Phdr) * nsegs);
 
     std::fclose(memF);
     std::fclose(outF);
