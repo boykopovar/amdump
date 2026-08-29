@@ -40,7 +40,13 @@ static std::string ParseName(const char* line) {
     return name;
 }
 
-ProcessMap::ProcessMap(int pid) {
+static bool MatchesAnyPrefix(const std::string& name, const std::vector<std::string>& prefixes) {
+    for (const auto& prefix : prefixes)
+        if (name.rfind(prefix, 0) == 0) return true;
+    return false;
+}
+
+ProcessMap::ProcessMap(int pid, const std::vector<std::string>& customSoPrefixes) {
     std::string path = "/proc/" + std::to_string(pid) + "/maps";
     std::FILE* f = std::fopen(path.c_str(), "r");
     if (!f) throw std::runtime_error("cannot open " + path);
@@ -50,7 +56,9 @@ ProcessMap::ProcessMap(int pid) {
         std::uint64_t start, end;
         char perms[8];
         if (std::sscanf(line, "%" SCNx64 "-%" SCNx64 " %7s", &start, &end, perms) != 3) continue;
-        _regions.push_back({start, end, ParseFlags(perms), ParseName(line)});
+        std::string name = ParseName(line);
+        if (!customSoPrefixes.empty() && !MatchesAnyPrefix(name, customSoPrefixes)) continue;
+        _regions.push_back({start, end, ParseFlags(perms), std::move(name)});
     }
     std::fclose(f);
     if (_regions.empty()) throw std::runtime_error("no mapped regions found");

@@ -5,12 +5,16 @@
 #include <cstdlib>
 #include <cinttypes>
 #include <string>
+#include <vector>
 #include <iostream>
 
 static const std::uint64_t DEFAULT_MAX_GB = 10;
+static const char* FLAG_MAX_GB = "--max-gb";
+static const char* FLAG_ONLY_SHOW_REGIONS = "--only-show-regions";
+static const char* FLAG_REGION_PREFIX = "--region-prefix";
 
 static void PrintUsage() {
-    std::cerr << "usage: amdump <pid|package> <outfile> [--max-gb <N>] [--only-show-regions]\n";
+    std::cerr << "usage: amdump <pid|package> <outfile> [" << FLAG_MAX_GB << " <N>] [" << FLAG_ONLY_SHOW_REGIONS << "] [" << FLAG_REGION_PREFIX << " <prefix> ...]\n";
 }
 
 int main(int argc, char** argv) {
@@ -20,23 +24,39 @@ int main(int argc, char** argv) {
     }
     std::uint64_t maxGb = DEFAULT_MAX_GB;
     bool onlyShowRegions = false;
+    std::vector<std::string> regionPrefixes;
     for (int i = 3; i < argc; ++i) {
         std::string flag = argv[i];
-        if (flag == "--only-show-regions") {
+        if (flag == FLAG_ONLY_SHOW_REGIONS) {
             onlyShowRegions = true;
-        } else if (flag == "--max-gb") {
+        } else if (flag == FLAG_MAX_GB) {
             if (i + 1 >= argc) {
-                std::cerr << "error: --max-gb requires a value\n";
+                std::cerr << "error: " << FLAG_MAX_GB << " requires a value\n";
                 return 1;
             }
             ++i;
             char* end;
             long val = std::strtol(argv[i], &end, 10);
             if (*end != '\0' || val <= 0) {
-                std::cerr << "error: --max-gb must be a positive integer\n";
+                std::cerr << "error: " << FLAG_MAX_GB << " must be a positive integer\n";
                 return 1;
             }
             maxGb = static_cast<std::uint64_t>(val);
+        } else if (flag == FLAG_REGION_PREFIX) {
+            if (i + 1 >= argc) {
+                std::cerr << "error: " << FLAG_REGION_PREFIX << " requires at least one prefix\n";
+                return 1;
+            }
+            ++i;
+            while (i < argc && argv[i][0] != '-') {
+                regionPrefixes.emplace_back(argv[i]);
+                ++i;
+            }
+            --i;
+            if (regionPrefixes.empty()) {
+                std::cerr << "error: " << FLAG_REGION_PREFIX << " requires at least one prefix\n";
+                return 1;
+            }
         } else {
             PrintUsage();
             return 1;
@@ -48,7 +68,7 @@ int main(int argc, char** argv) {
             ? std::atoi(arg.c_str())
             : Amdump::ProcessFinder::FindByPackage(arg);
         std::fprintf(stderr, "pid=%d\n", pid);
-        Amdump::ProcessMap map(pid);
+        Amdump::ProcessMap map(pid, regionPrefixes);
         if (onlyShowRegions) {
             const auto& regions = map.Regions();
             std::fprintf(stdout, "%-18s %-18s %s\n", "start", "end", "name");
