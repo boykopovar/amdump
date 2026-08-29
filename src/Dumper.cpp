@@ -15,7 +15,8 @@ static const std::size_t BUF = 1 << 20;
 static char _buf[BUF];
 static char _zero[BUF];
 
-Dumper::Dumper(int pid, const ProcessMap& map) : _pid(pid), _map(map) {}
+Dumper::Dumper(int pid, const ProcessMap& map, std::uint64_t maxBytes)
+    : _pid(pid), _map(map), _maxBytes(maxBytes) {}
 
 static void Write(std::FILE* f, const void* data, std::size_t size) {
     if (std::fwrite(data, 1, size, f) != size)
@@ -44,6 +45,17 @@ static void Fseek(std::FILE* f, std::uint64_t offset) {
 void Dumper::Run(const std::string& outPath) {
     const auto& regions = _map.Regions();
     std::uint16_t emachine = ProcessMap::EMachine(_pid);
+
+    std::uint64_t totalSize = sizeof(Elf64_Ehdr) + sizeof(Elf64_Phdr) * regions.size();
+    for (const auto& r : regions)
+        totalSize += r.end - r.start;
+
+    std::fprintf(stderr, "estimated file size: %" PRIu64 " MB\n", totalSize / (1024 * 1024));
+
+    if (totalSize > _maxBytes)
+        throw std::runtime_error(
+            "estimated dump size " + std::to_string(totalSize / (1024 * 1024)) +
+            " MB exceeds limit " + std::to_string(_maxBytes / (1024 * 1024)) + " MB");
 
     std::string memPath = "/proc/" + std::to_string(_pid) + "/mem";
     std::FILE* memF = std::fopen(memPath.c_str(), "rb");
@@ -102,7 +114,7 @@ void Dumper::Run(const std::string& outPath) {
             ++idx, nsegs, r.start, r.end);
     }
 
-    std::uint64_t totalFileSize = Ftell(outF);
+    std::uint64_t actualFileSize = Ftell(outF);
 
     Elf64_Ehdr ehdr;
     std::memset(&ehdr, 0, sizeof(ehdr));
@@ -151,7 +163,7 @@ void Dumper::Run(const std::string& outPath) {
     std::fprintf(stderr, "e_machine : 0x%x\n", static_cast<unsigned>(emachine));
     std::fprintf(stderr, "base      : 0x%" PRIx64 "\n", regions.front().start);
     std::fprintf(stderr, "top       : 0x%" PRIx64 "\n", regions.back().end);
-    std::fprintf(stderr, "file size : %" PRIu64 " MB\n", totalFileSize / (1024 * 1024));
+    std::fprintf(stderr, "file size : %" PRIu64 " MB\n", actualFileSize / (1024 * 1024));
     std::fprintf(stderr, "read      : %" PRIu64 " MB\n", bytesRead / (1024 * 1024));
     std::fprintf(stderr, "zeroed    : %" PRIu64 " MB\n", bytesZeroed / (1024 * 1024));
     std::fprintf(stderr, "output    : %s\n", outPath.c_str());
