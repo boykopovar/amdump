@@ -1,0 +1,73 @@
+name: build
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - abi: x86_64
+            cc: gcc
+            cxx: g++
+            packages: ""
+          - abi: x86
+            cc: gcc
+            cxx: g++
+            packages: g++-multilib
+            extra_flags: -m32
+          - abi: arm64-v8a
+            cc: aarch64-linux-gnu-gcc
+            cxx: aarch64-linux-gnu-g++
+            packages: g++-aarch64-linux-gnu libc6-dev-arm64-cross
+          - abi: armeabi-v7a
+            cc: arm-linux-gnueabihf-gcc
+            cxx: arm-linux-gnueabihf-g++
+            packages: g++-arm-linux-gnueabihf libc6-dev-armhf-cross
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cross toolchain
+        if: matrix.packages != ''
+        run: sudo apt-get update && sudo apt-get install -y ${{ matrix.packages }}
+
+      - name: Configure
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+          CXXFLAGS: ${{ matrix.extra_flags }}
+        run: cmake -B build-${{ matrix.abi }} -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build-${{ matrix.abi }} --config Release -j
+
+      - name: Rename binary
+        run: cp build-${{ matrix.abi }}/amdump amdump-${{ matrix.abi }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: amdump-${{ matrix.abi }}
+          path: amdump-${{ matrix.abi }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
