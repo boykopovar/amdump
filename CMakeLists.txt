@@ -10,6 +10,8 @@ add_executable(amdump
         core/src/ProcessFinder.cpp
         core/src/ProcessMap.cpp
         core/src/Dumper.cpp
+        core/src/FileIo.cpp
+        core/src/FileNoteBuilder.cpp
 )
 
 target_include_directories(amdump PRIVATE core/include)
