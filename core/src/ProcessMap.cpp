@@ -55,7 +55,13 @@ ProcessMap::ProcessMap(int pid, const std::vector<std::string>& customSoPrefixes
         if (ShouldSkip(line)) continue;
         std::uint64_t start, end;
         char perms[8];
-        if (std::sscanf(line, "%" SCNx64 "-%" SCNx64 " %7s", &start, &end, perms) != 3) continue;
+        if (std::sscanf(line, "%" SCNx64 "-%" SCNx64 " %7s", &start, &end, perms) != 3) {
+            std::string trimmed(line);
+            while (!trimmed.empty() && (trimmed.back() == '\n' || trimmed.back() == '\r'))
+                trimmed.pop_back();
+            std::fprintf(stderr, "warning: unparsable maps line for pid %d, skipped: %s\n", pid, trimmed.c_str());
+            continue;
+        }
         std::string name = ParseName(line);
         if (!customSoPrefixes.empty() && !MatchesAnyPrefix(name, customSoPrefixes)) continue;
         _regions.push_back({start, end, ParseFlags(perms), std::move(name)});

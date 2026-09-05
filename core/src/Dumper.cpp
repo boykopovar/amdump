@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cinttypes>
+#include <cerrno>
 #include <string>
 #include <algorithm>
 #include <vector>
@@ -97,12 +98,23 @@ void Dumper::Run(const std::string& outPath) {
             if (std::fseek(memF, static_cast<long>(vaddr), SEEK_SET) != 0)
                 throw std::runtime_error("fseek on /proc/mem failed at 0x" + std::to_string(vaddr));
 
+            errno = 0;
             std::size_t n = std::fread(_buf, 1, static_cast<std::size_t>(chunk), memF);
             if (n == 0) {
+                const char* reason = std::feof(memF) ? "EOF" : std::strerror(errno);
+                std::fprintf(stderr,
+                    "\nwarning: unreadable page at 0x%" PRIx64 " size 0x%" PRIx64 " in %s, reason: %s, zero-filled\n",
+                    vaddr, chunk, r.name.c_str(), reason);
+                std::clearerr(memF);
                 Write(outF, _zero, static_cast<std::size_t>(chunk));
                 bytesZeroed += chunk;
                 done += chunk;
                 continue;
+            }
+            if (n < static_cast<std::size_t>(chunk)) {
+                std::fprintf(stderr,
+                    "\nwarning: short read at 0x%" PRIx64 ", requested 0x%" PRIx64 " got 0x%zx in %s\n",
+                    vaddr, chunk, n, r.name.c_str());
             }
             Write(outF, _buf, n);
             bytesRead += static_cast<std::uint64_t>(n);
