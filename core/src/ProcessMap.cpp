@@ -53,18 +53,18 @@ ProcessMap::ProcessMap(int pid, const std::vector<std::string>& customSoPrefixes
     char line[512];
     while (std::fgets(line, sizeof(line), f)) {
         if (ShouldSkip(line)) continue;
-        std::uint64_t start, end;
+        std::uint64_t start, end, fileOffset;
         char perms[8];
-        if (std::sscanf(line, "%" SCNx64 "-%" SCNx64 " %7s", &start, &end, perms) != 3) {
+        if (std::sscanf(line, "%" SCNx64 "-%" SCNx64 " %7s %" SCNx64, &start, &end, perms, &fileOffset) != 4) {
+            std::fclose(f);
             std::string trimmed(line);
             while (!trimmed.empty() && (trimmed.back() == '\n' || trimmed.back() == '\r'))
                 trimmed.pop_back();
-            std::fprintf(stderr, "warning: unparsable maps line for pid %d, skipped: %s\n", pid, trimmed.c_str());
-            continue;
+            throw std::runtime_error("unparsable maps line for pid " + std::to_string(pid) + ": " + trimmed);
         }
         std::string name = ParseName(line);
         if (!customSoPrefixes.empty() && !MatchesAnyPrefix(name, customSoPrefixes)) continue;
-        _regions.push_back({start, end, ParseFlags(perms), std::move(name)});
+        _regions.push_back({start, end, ParseFlags(perms), fileOffset, std::move(name)});
     }
     std::fclose(f);
     if (_regions.empty()) throw std::runtime_error("no mapped regions found");

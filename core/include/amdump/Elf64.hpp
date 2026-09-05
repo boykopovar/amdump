@@ -25,10 +25,13 @@ static constexpr std::size_t EI_NIDENT = 16;
 static constexpr std::uint16_t ET_CORE = 4;
 
 static constexpr std::uint32_t PT_LOAD = 1;
+static constexpr std::uint32_t PT_NOTE = 4;
 
 static constexpr std::uint32_t PF_X = 0x1;
 static constexpr std::uint32_t PF_W = 0x2;
 static constexpr std::uint32_t PF_R = 0x4;
+
+static constexpr std::uint32_t NT_FILE = 0x46494c45;
 
 struct Elf64Ehdr {
     std::uint8_t e_ident[EI_NIDENT];
@@ -58,7 +61,14 @@ struct Elf64Phdr {
     std::uint64_t p_align;
 };
 
+struct Elf64Nhdr {
+    std::uint32_t n_namesz;
+    std::uint32_t n_descsz;
+    std::uint32_t n_type;
+};
+
 static_assert(sizeof(Elf64Ehdr) == 64, "Elf64Ehdr size mismatch");
 static_assert(sizeof(Elf64Phdr) == 56, "Elf64Phdr size mismatch");
+static_assert(sizeof(Elf64Nhdr) == 12, "Elf64Nhdr size mismatch");
 
 }
