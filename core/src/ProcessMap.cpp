@@ -47,7 +47,7 @@ static bool MatchesAnyPrefix(const std::string& name, const std::vector<std::str
 }
 
 ProcessMap::ProcessMap(int pid, const std::vector<std::string>& customSoPrefixes) {
-    std::string path = "/proc/" + std::to_string(pid) + "/maps";
+    const std::string path = "/proc/" + std::to_string(pid) + "/maps";
     std::FILE* f = std::fopen(path.c_str(), "r");
     if (!f) throw std::runtime_error("cannot open " + path);
     char line[512];
@@ -76,8 +76,8 @@ std::uint64_t ProcessMap::Base() const { return _regions.front().start; }
 
 std::uint64_t ProcessMap::Top() const { return _regions.back().end; }
 
-static std::uint16_t ReadEMachine(int pid) {
-    std::string path = "/proc/" + std::to_string(pid) + "/exe";
+static std::uint16_t ReadEMachine(const int pid) {
+    const std::string path = "/proc/" + std::to_string(pid) + "/exe";
     std::FILE* f = std::fopen(path.c_str(), "rb");
     if (!f) throw std::runtime_error("cannot open exe for pid " + std::to_string(pid));
     std::uint8_t ident[EI_NIDENT];
@@ -98,7 +98,7 @@ static std::uint16_t ReadEMachine(int pid) {
         std::fclose(f);
         throw std::runtime_error("only little-endian targets are supported");
     }
-    Elf64Ehdr ehdr;
+    Elf64Ehdr ehdr{};
     std::rewind(f);
     if (std::fread(&ehdr, 1, sizeof(ehdr), f) != sizeof(ehdr)) {
         std::fclose(f);

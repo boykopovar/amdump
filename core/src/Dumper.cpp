@@ -14,11 +14,11 @@
 
 namespace Amdump {
 
-static const std::size_t READ_BUF_SIZE = 1 << 20;
+static constexpr std::size_t READ_BUF_SIZE = 1 << 20;
 static char _readBuf[READ_BUF_SIZE];
 static char _zeroBuf[READ_BUF_SIZE];
 
-Dumper::Dumper(int pid, const ProcessMap& map, std::uint64_t maxBytes)
+Dumper::Dumper(const int pid, const ProcessMap& map, const std::uint64_t maxBytes)
     : _pid(pid), _map(map), _maxBytes(maxBytes) {}
 
 std::uint64_t Dumper::EstimateTotalSize(const std::vector<std::uint8_t>& noteData) const {
@@ -38,7 +38,7 @@ void Dumper::CheckSizeLimit(std::uint64_t totalSize) const {
 }
 
 void Dumper::CopyRegionBytes(std::FILE* memF, std::FILE* outF, const Region& r, ReadStats& stats) {
-    std::uint64_t rsize = r.end - r.start;
+    const std::uint64_t rsize = r.end - r.start;
     std::uint64_t done = 0;
 
     while (done < rsize) {
@@ -94,7 +94,7 @@ Elf64Ehdr Dumper::BuildEhdr(std::size_t nsegs) const {
     const auto& regions = _map.Regions();
     std::uint16_t emachine = ProcessMap::EMachine(_pid);
 
-    Elf64Ehdr ehdr;
+    Elf64Ehdr ehdr{};
     std::memset(&ehdr, 0, sizeof(ehdr));
     ehdr.e_ident[EI_MAG0] = ELFMAG0;
     ehdr.e_ident[EI_MAG1] = ELFMAG1;
@@ -117,21 +117,24 @@ Elf64Ehdr Dumper::BuildEhdr(std::size_t nsegs) const {
     return ehdr;
 }
 
-std::vector<Elf64Phdr> Dumper::BuildPhdrs(const std::vector<SegmentLayout>& layouts,
-                                           std::uint64_t noteOffset,
-                                           std::uint64_t noteSize) const {
+std::vector<Elf64Phdr> Dumper::BuildPhdrs(const std::vector<SegmentLayout>& layouts, std::uint64_t noteOffset, std::uint64_t noteSize) const {
     const auto& regions = _map.Regions();
-    std::vector<Elf64Phdr> phdrs(regions.size() + 1);
+    if (regions.empty())
+        throw std::runtime_error("no mapped regions to build program headers from");
 
-    Elf64Phdr& notePh = phdrs[0];
+    std::vector<Elf64Phdr> phdrs;
+    phdrs.reserve(regions.size() + 1);
+
+    Elf64Phdr notePh{};
     std::memset(&notePh, 0, sizeof(notePh));
     notePh.p_type = PT_NOTE;
     notePh.p_offset = noteOffset;
     notePh.p_filesz = noteSize;
     notePh.p_align = 4;
+    phdrs.push_back(notePh);
 
     for (std::size_t i = 0; i < regions.size(); ++i) {
-        Elf64Phdr& ph = phdrs[i + 1];
+        Elf64Phdr ph{};
         std::memset(&ph, 0, sizeof(ph));
         ph.p_type = PT_LOAD;
         ph.p_flags = regions[i].flags;
@@ -141,6 +144,7 @@ std::vector<Elf64Phdr> Dumper::BuildPhdrs(const std::vector<SegmentLayout>& layo
         ph.p_filesz = layouts[i].filesz;
         ph.p_memsz = layouts[i].filesz;
         ph.p_align = 0x1000;
+        phdrs.push_back(ph);
     }
     return phdrs;
 }
@@ -178,17 +182,17 @@ void Dumper::Run(const std::string& outPath) {
     }
 
     std::size_t nsegs = regions.size() + 1;
-    std::uint64_t hdrsSize = sizeof(Elf64Ehdr) + sizeof(Elf64Phdr) * nsegs;
+    const std::uint64_t hdrsSize = sizeof(Elf64Ehdr) + sizeof(Elf64Phdr) * nsegs;
     FileIo::WriteZeroes(outF, _zeroBuf, READ_BUF_SIZE, hdrsSize);
 
-    std::uint64_t noteOffset = FileIo::Tell(outF);
+    const std::uint64_t noteOffset = FileIo::Tell(outF);
     FileIo::Write(outF, noteData.data(), noteData.size());
 
     std::vector<SegmentLayout> layouts;
     layouts.reserve(regions.size());
-    ReadStats stats = WriteRegionData(memF, outF, layouts);
+    const ReadStats stats = WriteRegionData(memF, outF, layouts);
 
-    std::uint64_t actualFileSize = FileIo::Tell(outF);
+    const std::uint64_t actualFileSize = FileIo::Tell(outF);
 
     Elf64Ehdr ehdr = BuildEhdr(nsegs);
     std::vector<Elf64Phdr> phdrs = BuildPhdrs(layouts, noteOffset, noteData.size());

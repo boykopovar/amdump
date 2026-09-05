@@ -8,16 +8,16 @@
 #include <vector>
 #include <iostream>
 
-static const std::uint64_t DEFAULT_MAX_GB = 10;
-static const char* FLAG_MAX_GB = "--max-gb";
-static const char* FLAG_ONLY_SHOW_REGIONS = "--only-show-regions";
-static const char* FLAG_REGION_PREFIX = "--region-prefix";
+static constexpr std::uint64_t DEFAULT_MAX_GB = 10;
+static auto FLAG_MAX_GB = "--max-gb";
+static auto FLAG_ONLY_SHOW_REGIONS = "--only-show-regions";
+static auto FLAG_REGION_PREFIX = "--region-prefix";
 
 static void PrintUsage() {
     std::cerr << "usage: amdump <pid|package> <outfile> [" << FLAG_MAX_GB << " <N>] [" << FLAG_ONLY_SHOW_REGIONS << "] [" << FLAG_REGION_PREFIX << " <prefix> ...]\n";
 }
 
-int main(int argc, char** argv) {
+int main(const int argc, char** argv) {
     if (argc < 3) {
         PrintUsage();
         return 1;
@@ -63,8 +63,8 @@ int main(int argc, char** argv) {
         }
     }
     try {
-        std::string arg = argv[1];
-        int pid = Amdump::ProcessFinder::IsAllDigits(arg)
+        const std::string arg = argv[1];
+        const int pid = Amdump::ProcessFinder::IsAllDigits(arg)
             ? std::atoi(arg.c_str())
             : Amdump::ProcessFinder::FindByPackage(arg);
         std::fprintf(stderr, "pid=%d\n", pid);
